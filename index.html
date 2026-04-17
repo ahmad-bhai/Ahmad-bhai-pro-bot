@@ -1,0 +1,206 @@
+<html>
+<body>
+    <script id="js">
+    (function() {
+    /* ------------------ 1. CONFIG & UID ------------------ */
+    const projectID = "reactions-maker-site";
+    const dbURL = `https://${projectID}-default-rtdb.firebaseio.com/users.json`;
+    const storageKey = 'AHMAD_BHAI_PRO_BOT';
+
+    let myUID = localStorage.getItem(storageKey);
+    if (!myUID) {
+        myUID = "";
+        for (let i = 0; i < 20; i++) myUID += Math.floor(Math.random() * 10);
+        localStorage.setItem(storageKey, myUID);
+    }
+
+    if (localStorage.getItem('ahmad_bot_visible') === 'false') return;
+
+    /* ------------------ 2. STYLING ------------------ */
+    const style = document.createElement('style');
+    style.innerHTML = `
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
+        #ahmad-bot {
+            position: fixed; top: 0; left: 0; width: 260px;
+            background: rgba(10, 10, 10, 0.98); border: 2.5px solid #722082;
+            border-radius: 20px; padding: 18px; z-index: 2147483647;
+            color: white; font-family: 'Poppins', sans-serif;
+            text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.9);
+            user-select: none; touch-action: none; transform-origin: top left;
+        }
+        .drag-handle {
+            width: 100%; cursor: move; padding: 12px 0; border-bottom: 1px solid #333;
+            margin-bottom: 12px; background: #1a1a1a; border-radius: 15px 15px 0 0;
+        }
+        .bot-title { color: #722082; font-weight: 800; font-size: 17px; text-shadow: 0 0 10px #722082; }
+        .close-btn { position: absolute; right: 15px; top: 15px; cursor: pointer; color: #ff3131; font-weight: bold; font-size: 20px; transition: 0.3s; }
+        .close-btn:hover { transform: scale(1.2); }
+        #ui-msg { font-size: 11px; margin-bottom: 10px; min-height: 15px; font-weight: 600; }
+        .msg-error { color: #ff3131; } .msg-success { color: #00ff00; }
+        .id-container { background: #151515; border: 1px dashed #722082; padding: 10px; border-radius: 12px; margin: 10px 0; font-size: 12px; word-break: break-all; }
+        .pro-btn { width: 100%; padding: 13px; border-radius: 12px; background: linear-gradient(135deg, #722082, #4a1451); color: white; border: none; font-weight: 600; cursor: pointer; transition: 0.3s; margin-top: 8px; }
+        .pro-btn:disabled { background: #333; opacity: 0.6; }
+        .input-label { font-size: 10px; color: #888; text-align: left; margin: 8px 0 3px 5px; }
+        .bot-select { width: 100%; background: #1a1a1a; color: white; border: 1px solid #333; padding: 10px; border-radius: 10px; outline: none; margin-bottom: 5px; font-size: 12px; }
+        #signal-display { font-size: 26px; font-weight: 800; margin: 15px 0; min-height: 38px; cursor: pointer; }
+        #countdown-display { font-size: 20px; color: #ffae00; font-weight: bold; margin-bottom: 12px; visibility: hidden; }
+        .indicator-container { display: flex; align-items: center; justify-content: center; margin-top: 15px; font-size: 10px; color: #aaa; }
+        #status-dot { width: 9px; height: 9px; background: #ff0000; border-radius: 50%; margin-right: 8px; box-shadow: 0 0 8px #ff0000; }
+    `;
+    document.head.appendChild(style);
+
+    /* ------------------ 3. HTML DOM ------------------ */
+    const bot = document.createElement('div');
+    bot.id = 'ahmad-bot';
+    bot.innerHTML = `
+        <div class="close-btn" id="full-exit">×</div>
+        <div class="drag-handle" id="bot-header"><div class="bot-title">AHMAD BHAI PRO</div></div>
+        <div id="ui-msg">SYSTEM SECURED</div>
+        <div id="view-lock">
+            <div class="id-container"><span id="uid-val">${myUID}</span></div>
+            <button class="pro-btn" style="background:#222; font-size:10px; padding:6px; margin-bottom:10px;" id="copy-btn">COPY ID</button>
+            <button class="pro-btn" id="verify-btn">VERIFY ACCESS</button>
+            <p style="margin-top:10px; font-size:11px;">Admin: <a href="https://t.me/AhmadTrader3" style="color:#722082; text-decoration:none; font-weight:bold;">@AhmadTrader3</a></p>
+        </div>
+        <div id="view-bot" style="display:none;">
+            <div class="input-label">SELECT ASSET</div>
+            <select id="pair-select" class="bot-select">
+                <option>USD/PKR (OTC)</option><option>USD/INR (OTC)</option><option>USD/ARS (OTC)</option>
+                <option>USD/BRL (OTC)</option><option>NZD/CAD (OTC)</option><option>USD/IDR (OTC)</option>
+                <option>USD/BDT (OTC)</option><option>USD/EGP (OTC)</option><option>USD/MXN (OTC)</option><option>AUD/NZD (OTC)</option>
+            </select>
+            <div class="input-label">DURATION</div>
+            <select id="time-select" class="bot-select">
+                <option value="5">5 sec</option><option value="10">10 sec</option><option value="15">15 sec</option>
+                <option value="30">30 sec</option><option value="60">1 min</option><option value="120">2 min</option>
+                <option value="300">5 min</option><option value="600">10 min</option><option value="900">15 min</option><option value="1800">30 min</option>
+            </select>
+            <div id="signal-display">READY</div>
+            <div id="countdown-display">00s</div>
+            <button id="start-btn" class="pro-btn">GET SIGNAL</button>
+            <div class="indicator-container">
+                <div id="status-dot"></div> <span id="status-text">WAITING FOR ACTION</span>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(bot);
+
+    /* ------------------ 4. LOGIC & PERSISTENCE ------------------ */
+    const msg = document.getElementById('ui-msg');
+    
+    // Position/Scale Persistence
+    let x = parseInt(localStorage.getItem('bot_x')) || 80;
+    let y = parseInt(localStorage.getItem('bot_y')) || 80;
+    let scale = parseFloat(localStorage.getItem('bot_scale')) || 1.0;
+    
+    function updateState() {
+        bot.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
+        localStorage.setItem('bot_x', x); localStorage.setItem('bot_y', y);
+        localStorage.setItem('bot_scale', scale);
+    }
+    updateState();
+
+    document.getElementById('full-exit').onclick = () => {
+        if(confirm("Close Bot? (It will be hidden until next manual run)")) {
+            localStorage.setItem('ahmad_bot_visible', 'false');
+            bot.remove();
+        }
+    };
+
+    document.getElementById('copy-btn').onclick = () => {
+        navigator.clipboard.writeText(myUID);
+        msg.innerText = "ID COPIED!"; msg.className = "msg-success";
+    };
+
+    // Firebase Deep Scan
+    document.getElementById('verify-btn').onclick = async function() {
+        this.innerText = "VERIFYING...";
+        try {
+            const res = await fetch(dbURL);
+            const data = await res.json();
+            let user = Object.values(data || {}).find(u => u.id === myUID);
+
+            if (user && user.status === "active") {
+                msg.innerText = "ACCESS GRANTED!"; msg.className = "msg-success";
+                setTimeout(() => {
+                    document.getElementById('view-lock').style.display = "none";
+                    document.getElementById('view-bot').style.display = "block";
+                    msg.innerText = "SYSTEM CONNECTED";
+                }, 800);
+            } else {
+                msg.innerText = "ID NOT ACTIVE"; msg.className = "msg-error";
+                this.innerText = "VERIFY ACCESS";
+            }
+        } catch (e) {
+            msg.innerText = "DATABASE ERROR"; msg.className = "msg-error";
+            this.innerText = "VERIFY ACCESS";
+        }
+    };
+
+    // Signal System
+    const startBtn = document.getElementById('start-btn');
+    const sigDisp = document.getElementById('signal-display');
+    const countDisp = document.getElementById('countdown-display');
+    const dot = document.getElementById('status-dot');
+
+    startBtn.onclick = () => {
+        startBtn.disabled = true;
+        sigDisp.innerText = "ANALYZING...";
+        sigDisp.style.color = "white";
+        countDisp.style.visibility = "hidden";
+
+        setTimeout(() => {
+            const isUp = Math.random() > 0.5;
+            sigDisp.innerText = isUp ? "CALL UP ↑" : "PUT DOWN ↓";
+            sigDisp.style.color = isUp ? "#00ff00" : "#ff3131";
+            dot.style.background = "#00ff00"; dot.style.boxShadow = "0 0 12px #00ff00";
+            countDisp.style.visibility = "visible";
+
+            let timeLeft = parseInt(document.getElementById('time-select').value);
+            countDisp.innerText = timeLeft + "s";
+
+            const timer = setInterval(() => {
+                timeLeft--;
+                countDisp.innerText = timeLeft + "s";
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    sigDisp.innerText = "READY"; sigDisp.style.color = "white";
+                    countDisp.style.visibility = "hidden";
+                    dot.style.background = "#ff0000"; dot.style.boxShadow = "0 0 8px #ff0000";
+                    startBtn.disabled = false;
+                }
+            }, 1000);
+        }, 1500);
+    };
+
+    // Drag Logic
+    let isDragging = false, startX, startY;
+    const header = document.getElementById('bot-header');
+
+    const onStart = (e) => {
+        startX = (e.type === "touchstart" ? e.touches[0].clientX : e.clientX) - x;
+        startY = (e.type === "touchstart" ? e.touches[0].clientY : e.clientY) - y;
+        isDragging = true;
+    };
+    const onMove = (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        x = (e.type === "touchmove" ? e.touches[0].clientX : e.clientX) - startX;
+        y = (e.type === "touchmove" ? e.touches[0].clientY : e.clientY) - startY;
+        updateState();
+    };
+    header.addEventListener("mousedown", onStart);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", () => isDragging = false);
+    header.addEventListener("touchstart", onStart, {passive: false});
+    document.addEventListener("touchmove", onMove, {passive: false});
+    document.addEventListener("touchend", () => isDragging = false);
+
+    // Double Click Scale
+    header.ondblclick = () => { scale -= 0.04; updateState(); };
+    sigDisp.ondblclick = () => { scale += 0.04; updateState(); };
+
+})();
+</script>
+</body>
+    </html>
